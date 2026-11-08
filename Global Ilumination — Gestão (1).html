@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Global Ilumination — Gestão</title>
+<style>
+:root{--bg:#f5f4f0;--sf:#fff;--tx:#1d2330;--mu:#6b7280;--bd:#e2e0d8;--pr:#b45309;--prt:#fff;--ok:#1a8a4a;--er:#c8372d;--wa:#b7791f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14161b;--sf:#1e222a;--tx:#eceef2;--mu:#9aa3b2;--bd:#2f3541;--pr:#f0a53a;--prt:#1b1300;--ok:#4cc17f;--er:#f0766d;--wa:#e0aa4a;color-scheme:dark}}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{background:var(--sf);border-bottom:3px solid var(--pr);padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+header h1{font-size:17px;margin:0;flex:1;min-width:170px}header h1 small{display:block;font-weight:400;font-size:12px;color:var(--mu)}
+nav{display:flex;gap:6px;overflow-x:auto;padding:10px 14px}nav button{white-space:nowrap}
+main{padding:0 14px 30px;max-width:1040px;margin:auto}
+button,select,input{font:inherit;color:var(--tx);background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:8px 12px}
+button{cursor:pointer}button.on,button.pr{background:var(--pr);border-color:var(--pr);color:var(--prt)}button.sm{padding:4px 10px;font-size:13px}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:12px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.kpi b{display:block;font-size:21px}.kpi span,.mu{color:var(--mu);font-size:13px}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--bd);white-space:nowrap}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;align-items:center}.row input,.row select{flex:1;min-width:110px}
+.tag{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--bd)}.low{color:var(--er);font-weight:600}
+.bar{height:8px;background:var(--bd);border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:var(--pr)}
+.demo{background:var(--wa);color:#fff;font-size:12px;padding:4px 14px;text-align:center}
+</style>
+</head>
+<body>
+<div class="demo">Dados de demonstração — não representam factos reais</div>
+<header><h1>Global Ilumination<small>Construção civil + gestão comercial</small></h1><select id="role" aria-label="Perfil"></select></header>
+<nav id="nav"></nav>
+<main id="v"></main>
+<script>
+const ROLES={Administrador:['painel','clientes','orc','obras','stock','vendas','fin','audit'],Comercial:['painel','clientes','orc','vendas','stock'],'Engenheiro de obras':['painel','obras','stock'],Contabilidade:['painel','vendas','fin','audit']};
+const TABS={painel:'Painel',clientes:'Clientes',orc:'Orçamentos',obras:'Obras',stock:'Stock',vendas:'Vendas',fin:'Finanças',audit:'Auditoria'};
+const KEY='gi_v1',$=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const mzn=n=>new Intl.NumberFormat('pt-PT',{style:'currency',currency:'MZN'}).format(n||0);
+const dt=t=>{const d=new Date(t),p=n=>String(n).padStart(2,'0');return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()}`};
+const num=id=>+($('#'+id)||{}).value||0,val=id=>(($('#'+id)||{}).value||'').trim();
+function seed(){return{tax:0,
+cl:[{id:1,name:'Cliente Demo A',tel:'84 000 0001'},{id:2,name:'Cliente Demo B',tel:'84 000 0002'}],
+st:[{id:1,name:'Cimento (saco 50 kg)',un:'saco',qty:120,min:30,cost:600,price:750},{id:2,name:'Areia',un:'m³',qty:20,min:5,cost:900,price:1200},{id:3,name:'Tinta (balde 20 L)',un:'balde',qty:8,min:10,cost:3500,price:4500},{id:4,name:'Cabo elétrico (rolo)',un:'rolo',qty:15,min:5,cost:2800,price:3600}],
+q:[{id:1,no:'O0001',cl:1,desc:'Reabilitação de armazém (demo)',items:[{d:'Mão de obra',n:1,p:60000},{d:'Materiais',n:1,p:90000}],st:'Enviado'}],
+ob:[{id:1,name:'Muro de vedação (demo)',cl:2,bud:120000,prog:40,st:'Em curso',costs:[{t:Date.now(),d:'Mão de obra',v:30000}]}],
+inv:[],exp:[],log:[]}}
+let S;try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+if(!S||!S.cl)S=seed();
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+let role='Administrador',tab='painel',dr={cl:'',desc:'',items:[]};
+const log=a=>{S.log.unshift({t:Date.now(),u:role,a});S.log=S.log.slice(0,200);save()};
+const cn=id=>(S.cl.find(c=>c.id==id)||{name:'Cliente de balcão'}).name;
+const qt=q=>q.items.reduce((a,i)=>a+i.n*i.p,0);
+const oc=o=>o.costs.reduce((a,c)=>a+c.v,0);
+const ob_bill=o=>S.inv.filter(i=>i.ob===o.id).reduce((a,i)=>a+i.sub,0);
+const opt=(l,f)=>l.map(f).join('');
+function mk(cl,desc,sub,ob){const tax=sub*S.tax/100,no='F'+String(S.inv.length+1).padStart(4,'0');S.inv.push({no,t:Date.now(),cl,desc,sub,tax,tot:sub+tax,ob:ob||0});return no}
+function nav(){$('#nav').innerHTML=ROLES[role].map(t=>`<button class="${t===tab?'on':''}" onclick="tab='${t}';render()">${TABS[t]}</button>`).join('')}
+function render(){if(!ROLES[role].includes(tab))tab=ROLES[role][0];nav();$('#v').innerHTML=V[tab]();save()}
+const V={
+painel(){const m=new Date().getMonth(),inc=S.inv.filter(i=>new Date(i.t).getMonth()==m).reduce((a,i)=>a+i.tot,0),low=S.st.filter(s=>s.qty<=s.min).length;
+return `<div class="kpis"><div class="card kpi"><b>${S.ob.filter(o=>o.st==='Em curso').length}</b><span>Obras em curso</span></div><div class="card kpi"><b>${S.q.filter(q=>q.st==='Enviado').length}</b><span>Orçamentos por decidir</span></div><div class="card kpi"><b>${mzn(inc)}</b><span>Faturado este mês</span></div><div class="card kpi"><b>${low}</b><span>Artigos com stock baixo</span></div></div>
+<div class="card"><b>Obras</b>${S.ob.map(o=>`<p>${esc(o.name)} <span class="mu">· ${esc(cn(o.cl))} · ${o.prog}%</span></p><div class="bar"><i style="width:${o.prog}%"></i></div>`).join('')||'<p class="mu">Sem obras</p>'}</div>`},
+clientes(){return `<div class="card"><b>Novo cliente</b><div class="row"><input id="cn" placeholder="Nome"><input id="ct" placeholder="Telefone"><button class="pr" onclick="A.cl()">Adicionar</button></div></div><div class="card tw"><table><tr><th>Cliente</th><th>Telefone</th><th>Orçamentos</th><th>Obras</th><th>Faturado</th></tr>${S.cl.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.tel)}</td><td>${S.q.filter(q=>q.cl==c.id).length}</td><td>${S.ob.filter(o=>o.cl==c.id).length}</td><td>${mzn(S.inv.filter(i=>i.cl==c.id).reduce((a,i)=>a+i.tot,0))}</td></tr>`).join('')}</table></div>`},
+orc(){const t=dr.items.reduce((a,i)=>a+i.n*i.p,0);
+return `<div class="card"><b>Novo orçamento</b><div class="row"><select id="qc">${opt(S.cl,c=>`<option value="${c.id}" ${c.id==dr.cl?'selected':''}>${esc(c.name)}</option>`)}</select><input id="qd" placeholder="Descrição do serviço" value="${esc(dr.desc)}"></div>
+<div class="row"><input id="id" placeholder="Linha"><input id="in" type="number" placeholder="Qtd"><input id="ip" type="number" placeholder="Preço unit."><button onclick="A.line()">+ Linha</button></div>
+${dr.items.map(i=>`<p class="mu">${esc(i.d)} · ${i.n} × ${mzn(i.p)}</p>`).join('')}<p><b>Total: ${mzn(t)}</b></p><button class="pr" onclick="A.saveQ()">Guardar orçamento</button></div>
+<div class="card tw"><table><tr><th>Nº</th><th>Cliente</th><th>Serviço</th><th>Total</th><th>Estado</th><th></th></tr>${S.q.map(q=>`<tr><td>${q.no}</td><td>${esc(cn(q.cl))}</td><td>${esc(q.desc)}</td><td>${mzn(qt(q))}</td><td><span class="tag">${q.st}</span></td><td>${q.st==='Enviado'?`<button class="sm pr" onclick="A.appr(${q.id})">Aprovar → obra</button> <button class="sm" onclick="A.rej(${q.id})">Recusar</button>`:q.st==='Rascunho'?`<button class="sm" onclick="A.send(${q.id})">Marcar enviado</button>`:''}</td></tr>`).join('')}</table></div>`},
+obras(){return S.ob.map(o=>{const c=oc(o),b=ob_bill(o);return `<div class="card"><b>${esc(o.name)}</b> <span class="tag">${o.st}</span><p class="mu">${esc(cn(o.cl))} · Orçamento ${mzn(o.bud)} · Custos ${mzn(c)} · Faturado ${mzn(b)} · Margem prevista ${mzn(o.bud-c)}</p>
+<div class="bar"><i style="width:${o.prog}%"></i></div><p class="mu">Progresso: ${o.prog}%</p>
+<div class="row"><button class="sm" onclick="A.prog(${o.id},10)">+10%</button><button class="sm" onclick="A.prog(${o.id},-10)">−10%</button>${o.st==='Em curso'?`<button class="sm" onclick="A.done(${o.id})">Concluir obra</button>`:''}</div>
+<div class="row"><select id="m${o.id}">${opt(S.st,s=>`<option value="${s.id}">${esc(s.name)}</option>`)}</select><input id="mq${o.id}" type="number" placeholder="Qtd"><button class="sm" onclick="A.use(${o.id})">Consumir material</button></div>
+<div class="row"><input id="cd${o.id}" placeholder="Outro custo"><input id="cv${o.id}" type="number" placeholder="Valor"><button class="sm" onclick="A.cost(${o.id})">Registar</button></div>
+<div class="row"><input id="fv${o.id}" type="number" placeholder="Valor a faturar"><button class="sm pr" onclick="A.bill(${o.id})">Faturar ao cliente</button></div></div>`}).join('')||'<div class="card mu">Sem obras. Aprove um orçamento para criar uma.</div>'},
+stock(){return `<div class="card"><b>Novo artigo</b><div class="row"><input id="sn" placeholder="Nome"><input id="su" placeholder="Unid."><input id="sq" type="number" placeholder="Qtd"><input id="sm" type="number" placeholder="Mínimo"><input id="sc" type="number" placeholder="Custo"><input id="sp" type="number" placeholder="Preço venda"><button class="pr" onclick="A.addSt()">Adicionar</button></div></div>
+<div class="card tw"><table><tr><th>Artigo</th><th>Qtd</th><th>Mín.</th><th>Custo</th><th>Venda</th><th></th></tr>${S.st.map(s=>`<tr><td>${esc(s.name)}</td><td class="${s.qty<=s.min?'low':''}">${s.qty} ${esc(s.un)}</td><td>${s.min}</td><td>${mzn(s.cost)}</td><td>${mzn(s.price)}</td><td><button class="sm" onclick="A.buy(${s.id})">+10 entrada</button></td></tr>`).join('')}</table></div>`},
+vendas(){return `<div class="card"><b>Nova venda</b><div class="row"><select id="vc"><option value="0">Cliente de balcão</option>${opt(S.cl,c=>`<option value="${c.id}">${esc(c.name)}</option>`)}</select><select id="vp">${opt(S.st,s=>`<option value="${s.id}">${esc(s.name)}</option>`)}</select><input id="vq" type="number" placeholder="Qtd"><button class="pr" onclick="A.sell()">Vender e faturar</button></div></div>
+<div class="card tw"><b>Faturas</b><table><tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Descrição</th><th>Imposto</th><th>Total</th></tr>${S.inv.slice().reverse().map(i=>`<tr><td>${i.no}</td><td>${dt(i.t)}</td><td>${esc(cn(i.cl))}</td><td>${esc(i.desc)}</td><td>${mzn(i.tax)}</td><td>${mzn(i.tot)}</td></tr>`).join('')||'<tr><td colspan="6" class="mu">Sem faturas</td></tr>'}</table></div>`},
+fin(){const inc=S.inv.reduce((a,i)=>a+i.tot,0),ge=S.exp.reduce((a,e)=>a+e.v,0),co=S.ob.reduce((a,o)=>a+oc(o),0);
+return `<div class="kpis"><div class="card kpi"><b>${mzn(inc)}</b><span>Receita faturada</span></div><div class="card kpi"><b>${mzn(ge)}</b><span>Despesas gerais</span></div><div class="card kpi"><b>${mzn(co)}</b><span>Custos de obra</span></div><div class="card kpi"><b>${mzn(inc-ge-co)}</b><span>Resultado</span></div></div>
+<div class="card"><b>Nova despesa geral</b><div class="row"><input id="ed" placeholder="Descrição"><input id="ev" type="number" placeholder="Valor"><button class="pr" onclick="A.exp()">Registar</button></div></div>
+<div class="card"><b>Imposto sobre faturas (%)</b><p class="mu">Configurável. Confirme as regras fiscais de Moçambique em vigor antes de usar.</p><div class="row"><input id="tx" type="number" value="${S.tax}"><button onclick="A.tax()">Guardar</button><button onclick="A.csv()">Exportar faturas (CSV)</button></div></div>
+<div class="card tw"><b>Despesas</b><table><tr><th>Data</th><th>Descrição</th><th>Valor</th></tr>${S.exp.map(e=>`<tr><td>${dt(e.t)}</td><td>${esc(e.d)}</td><td>${mzn(e.v)}</td></tr>`).join('')||'<tr><td colspan="3" class="mu">Sem despesas</td></tr>'}</table></div>`},
+audit(){return `<div class="card tw"><table><tr><th>Data</th><th>Perfil</th><th>Ação</th></tr>${S.log.map(l=>`<tr><td>${dt(l.t)}</td><td>${esc(l.u)}</td><td>${esc(l.a)}</td></tr>`).join('')||'<tr><td colspan="3" class="mu">Sem registos</td></tr>'}</table></div>`}};
+const A={
+cl(){const n=val('cn');if(!n)return;S.cl.push({id:Date.now(),name:n,tel:val('ct')});log('Novo cliente: '+n);render()},
+line(){dr.cl=$('#qc').value;dr.desc=val('qd');const d=val('id'),n=num('in'),p=num('ip');if(!d||!n||!p)return;dr.items.push({d,n,p});render()},
+saveQ(){dr.cl=$('#qc').value;dr.desc=val('qd');if(!dr.desc||!dr.items.length)return;const no='O'+String(S.q.length+1).padStart(4,'0');S.q.push({id:Date.now(),no,cl:+dr.cl,desc:dr.desc,items:dr.items,st:'Rascunho'});log('Orçamento '+no);dr={cl:'',desc:'',items:[]};render()},
+send(id){S.q.find(q=>q.id==id).st='Enviado';log('Orçamento enviado');render()},
+rej(id){S.q.find(q=>q.id==id).st='Recusado';log('Orçamento recusado');render()},
+appr(id){const q=S.q.find(q=>q.id==id);q.st='Aprovado';S.ob.push({id:Date.now(),name:q.desc,cl:q.cl,bud:qt(q),prog:0,st:'Em curso',costs:[]});log(`Orçamento ${q.no} aprovado: obra criada`);tab='obras';render()},
+prog(id,d){const o=S.ob.find(o=>o.id==id);o.prog=Math.max(0,Math.min(100,o.prog+d));render()},
+done(id){const o=S.ob.find(o=>o.id==id);o.st='Concluída';o.prog=100;log('Obra concluída: '+o.name);render()},
+use(id){const o=S.ob.find(o=>o.id==id),s=S.st.find(s=>s.id==$('#m'+id).value),n=num('mq'+id);if(!n)return;if(n>s.qty){alert('Stock insuficiente: '+s.qty+' '+s.un);return}s.qty-=n;o.costs.push({t:Date.now(),d:`${s.name} ×${n}`,v:n*s.cost});log(`Material para ${o.name}: ${s.name} ×${n}`);render()},
+cost(id){const o=S.ob.find(o=>o.id==id),d=val('cd'+id),v=num('cv'+id);if(!d||!v)return;o.costs.push({t:Date.now(),d,v});log(`Custo em ${o.name}: ${d}`);render()},
+bill(id){const o=S.ob.find(o=>o.id==id),v=num('fv'+id);if(!v)return;const no=mk(o.cl,'Obra: '+o.name,v,o.id);log(`Fatura ${no} (${mzn(v)}) da obra ${o.name}`);render()},
+addSt(){const n=val('sn');if(!n)return;S.st.push({id:Date.now(),name:n,un:val('su')||'un',qty:num('sq'),min:num('sm'),cost:num('sc'),price:num('sp')});log('Novo artigo: '+n);render()},
+buy(id){const s=S.st.find(s=>s.id==id);s.qty+=10;log(`Entrada de stock: ${s.name} +10`);render()},
+sell(){const s=S.st.find(s=>s.id==$('#vp').value),n=num('vq');if(!n)return;if(n>s.qty){alert('Stock insuficiente: '+s.qty+' '+s.un);return}s.qty-=n;const no=mk(+$('#vc').value,`${s.name} ×${n}`,n*s.price);log(`Venda ${no}: ${s.name} ×${n}`);render()},
+exp(){const d=val('ed'),v=num('ev');if(!d||!v)return;S.exp.unshift({t:Date.now(),d,v});log('Despesa: '+d);render()},
+tax(){S.tax=num('tx');log('Imposto alterado para '+S.tax+'%');render()},
+csv(){const r=['Nº;Data;Cliente;Descrição;Imposto;Total'].concat(S.inv.map(i=>[i.no,dt(i.t),cn(i.cl),i.desc,i.tax,i.tot].join(';')));const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+r.join('\n')],{type:'text/csv'}));a.download='faturas.csv';a.click()}};
+$('#role').innerHTML=Object.keys(ROLES).map(r=>`<option>${r}</option>`).join('');
+$('#role').onchange=e=>{role=e.target.value;render()};
+render();
+</script>
+</body>
+</html>
